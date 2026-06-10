@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WIN5 難易度メーター</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1e1e2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    
+    <!-- Google Fonts: Outfit & Noto Sans JP -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>WIN5 Meter</h1>
+            <div class="status-indicator" id="status-indicator"></div>
+        </header>
+
+        <main>
+            <!-- Gauge Section -->
+            <section class="gauge-card glass">
+                <h2>Remaining WIN5 Allowance</h2>
+                <div class="gauge-container">
+                    <svg viewBox="0 0 100 50" class="gauge">
+                        <path class="gauge-bg" d="M 10,50 A 40,40 0 0,1 90,50" fill="none" stroke-width="12" stroke-linecap="round"></path>
+                        <path class="gauge-value" id="gauge-value" d="M 10,50 A 40,40 0 0,1 90,50" fill="none" stroke-width="12" stroke-linecap="round" stroke-dasharray="125.6" stroke-dashoffset="125.6"></path>
+                    </svg>
+                    <div class="gauge-center">
+                        <span class="gauge-text" id="remaining-value">--</span>
+                        <span class="gauge-label">残りの余裕</span>
+                    </div>
+                </div>
+                <div class="gauge-message" id="gauge-message">
+                    データ未取得
+                </div>
+            </section>
+
+            <!-- Details Section -->
+            <section class="details-grid">
+                <div class="detail-card glass">
+                    <h3>土曜天井 (上限)</h3>
+                    <div class="val-box">
+                        <span class="value" id="ceiling-value">--</span>
+                        <span class="unit">和</span>
+                    </div>
+                    <button class="btn primary" id="btn-fetch-sat">取得する</button>
+                    <div class="loading-spinner hidden" id="spinner-sat"></div>
+                </div>
+                
+                <div class="detail-card glass">
+                    <h3>日曜現在 (消費)</h3>
+                    <div class="val-box">
+                        <span class="value" id="current-value">--</span>
+                        <span class="unit">和</span>
+                    </div>
+                    <div class="controls">
+                        <label for="race-select">指定レース</label>
+                        <select id="race-select">
+                            <option value="9" selected>第9Rまで</option>
+                            <option value="10">第10Rまで</option>
+                            <option value="11">第11Rまで</option>
+                            <option value="12">第12Rまで</option>
+                        </select>
+                    </div>
+                    <button class="btn secondary" id="btn-fetch-sun">取得する</button>
+                    <div class="loading-spinner hidden" id="spinner-sun"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+            .then(() => console.log('Service Worker Registered'));
+        }
+    </script>
+</body>
+</html>
