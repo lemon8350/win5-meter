@@ -22,7 +22,9 @@ def fetch_single_race_1st_place(race_id):
     url = f"https://race.netkeiba.com/race/result.html?race_id={race_id}"
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        dfs = pd.read_html(url, encoding='euc-jp', storage_options=headers)
+        res = requests.get(url, headers=headers, timeout=5)
+        res.encoding = 'euc-jp'
+        dfs = pd.read_html(res.text)
         if not dfs:
             return None
         df = dfs[0]
@@ -54,6 +56,7 @@ def fetch_single_race_1st_place(race_id):
                     }
         return None
     except Exception as e:
+        print(f"Exception in fetch_single_race_1st_place: {e}")
         return None
 
 def fetch_1st_place_popularities(date_str, up_to_race=None):
