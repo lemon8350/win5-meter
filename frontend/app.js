@@ -10,6 +10,7 @@ const spinnerSat = document.getElementById('spinner-sat');
 const spinnerSun = document.getElementById('spinner-sun');
 const raceSelect = document.getElementById('race-select');
 const statusIndicator = document.getElementById('status-indicator');
+const targetDateInput = document.getElementById('target-date');
 
 // State
 let ceiling = null;
@@ -72,12 +73,52 @@ function updateGauge() {
     }
 }
 
+// --- Helpers ---
+function getWeekendDatesFromInput() {
+    const val = targetDateInput.value;
+    if (!val) return { sat: '', sun: '' }; // Fallback to backend auto
+    
+    // Parse selected date (e.g. "2026-06-07")
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return { sat: '', sun: '' };
+    
+    // Find closest weekend (assuming the picked date is roughly around the target weekend)
+    // If the picked date is a Sunday(0), Saturday is d - 1 day.
+    // If the picked date is a Saturday(6), Sunday is d + 1 day.
+    const day = d.getDay();
+    let satDate = new Date(d);
+    let sunDate = new Date(d);
+    
+    if (day === 6) {
+        sunDate.setDate(d.getDate() + 1);
+    } else if (day === 0) {
+        satDate.setDate(d.getDate() - 1);
+    } else {
+        // If a weekday is picked, default to the upcoming weekend
+        const daysToSat = 6 - day;
+        satDate.setDate(d.getDate() + daysToSat);
+        sunDate.setDate(d.getDate() + daysToSat + 1);
+    }
+    
+    const fmt = (dt) => {
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const dNum = String(dt.getDate()).padStart(2, '0');
+        return `${y}${m}${dNum}`;
+    };
+    
+    return { sat: fmt(satDate), sun: fmt(sunDate) };
+}
+
 // --- Event Listeners ---
 btnSat.addEventListener('click', async () => {
     btnSat.classList.add('hidden');
     spinnerSat.classList.remove('hidden');
     
-    const data = await fetchAPI('/saturday-ceiling');
+    const dates = getWeekendDatesFromInput();
+    const q = dates.sat ? `?target_date=${dates.sat}` : '';
+    
+    const data = await fetchAPI(`/saturday-ceiling${q}`);
     if (data && data.ceiling !== undefined) {
         ceiling = data.ceiling;
         elCeiling.innerText = ceiling;
@@ -93,7 +134,10 @@ btnSun.addEventListener('click', async () => {
     spinnerSun.classList.remove('hidden');
     
     const upTo = raceSelect.value;
-    const data = await fetchAPI(`/sunday-current?up_to_race=${upTo}`);
+    const dates = getWeekendDatesFromInput();
+    const qTarget = dates.sun ? `&target_date=${dates.sun}` : '';
+    
+    const data = await fetchAPI(`/sunday-current?up_to_race=${upTo}${qTarget}`);
     if (data && data.current_sum !== undefined) {
         current = data.current_sum;
         elCurrent.innerText = current;

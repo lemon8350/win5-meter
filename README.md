@@ -25,9 +25,9 @@
 
 クラウドにデプロイする前や、テストをしたい場合は、以下のコマンドで起動できます。
 
-```bash
-cd backend
-pip install -r requirements.txt
-python3 -m uvicorn main:app --port 8000
-```
-起動後、ブラウザで `http://localhost:8000` にアクセスしてください。
+1. ターミナルで `WIN5_Meter/backend` ディレクトリに移動します。
+2. 以下のコマンドを実行します：
+   ```bash
+   python3 -m uvicorn main:app --port 8090
+   ```
+3. 起動後、ブラウザで `http://localhost:8090` にアクセスしてください。

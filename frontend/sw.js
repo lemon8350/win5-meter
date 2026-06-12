@@ -1,4 +1,4 @@
-const CACHE_NAME = 'win5-meter-v1';
+const CACHE_NAME = 'win5-meter-v2';
 const urlsToCache = [
     '/',
     '/index.html',
@@ -8,11 +8,28 @@ const urlsToCache = [
 ];
 
 self.addEventListener('install', event => {
+    // 強制的に新しいサービスワーカーを待機状態からアクティブにする
+    self.skipWaiting();
     event.waitUntil(
         caches.open(CACHE_NAME)
         .then(cache => {
             return cache.addAll(urlsToCache);
         })
+    );
+});
+
+self.addEventListener('activate', event => {
+    // 古いキャッシュを削除する
+    event.waitUntil(
+        caches.keys().then(cacheNames => {
+            return Promise.all(
+                cacheNames.map(cacheName => {
+                    if (cacheName !== CACHE_NAME) {
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+        }).then(() => self.clients.claim())
     );
 });
 

@@ -17,8 +17,13 @@
 <body>
     <div class="app-container">
         <header>
-            <h1>WIN5 Meter</h1>
-            <div class="status-indicator" id="status-indicator"></div>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <h1>WIN5 Meter</h1>
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="date" id="target-date" style="margin-bottom: 0; padding: 4px; height: 28px; width: auto; font-size: 14px; background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.3); border-radius: 4px;">
+                    <div class="status-indicator" id="status-indicator"></div>
+                </div>
+            </div>
         </header>
 
         <main>
