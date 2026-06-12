@@ -24,36 +24,26 @@ def fetch_single_race_1st_place(race_id):
     try:
         res = requests.get(url, headers=headers, timeout=5)
         res.encoding = 'euc-jp'
-        dfs = pd.read_html(res.text)
-        if not dfs:
-            return None
-        df = dfs[0]
         
-        # MultiIndex対策
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[-1] for col in df.columns]
+        soup = BeautifulSoup(res.text, 'html.parser')
+        table = soup.find('table', class_='RaceTable01')
+        if not table:
+            return None
             
-        # 1着を探す
-        for _, row in df.iterrows():
-            cols = df.columns
-            
-            def safe_get(key_candidates):
-                for k in key_candidates:
-                    if k in cols:
-                        return str(row[k])
-                return ""
-                
-            rank = safe_get(["着順", "着", "順位", "着 順"]).strip()
-            # 「1」または「1(降)」など
-            if rank.startswith("1"):
-                pop_str = safe_get(["人気", "人気順", "人 気"]).strip()
-                if pop_str.isdigit() or pop_str.replace('.', '', 1).isdigit():
-                    return {
-                        "race_id": race_id,
-                        "race_num": int(race_id[-2:]),
-                        "course": race_id[4:6],
-                        "popularity": int(float(pop_str))
-                    }
+        rows = table.find_all('tr')[1:] # Skip header
+        for row in rows:
+            cols = row.find_all('td')
+            if len(cols) >= 10:
+                rank = cols[0].get_text(strip=True)
+                if rank.startswith('1'):
+                    pop_str = cols[9].get_text(strip=True)
+                    if pop_str.isdigit() or pop_str.replace('.', '', 1).isdigit():
+                        return {
+                            "race_id": race_id,
+                            "race_num": int(race_id[-2:]),
+                            "course": race_id[4:6],
+                            "popularity": int(float(pop_str))
+                        }
         return None
     except Exception as e:
         print(f"Exception in fetch_single_race_1st_place: {e}")
