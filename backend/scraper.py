@@ -2,32 +2,14 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import os
-import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
-def fetch_html(url, timeout=60):
-    """
-    URLをフェッチする汎用ヘルパー。
-    環境変数 SCRAPER_API_KEY が設定されている場合は、ScraperAPIを経由して取得する。
-    """
-    api_key = os.environ.get("SCRAPER_API_KEY")
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    
-    if api_key:
-        # ScraperAPIを経由
-        target_url = f"http://api.scraperapi.com/?api_key={api_key}&url={urllib.parse.quote(url)}"
-        res = requests.get(target_url, timeout=timeout)
-    else:
-        # ローカルからの直接アクセス
-        res = requests.get(url, headers=headers, timeout=timeout)
-        
-    return res
 
 def get_race_ids(date_str):
     """指定した日付のレースID一覧を取得する"""
     url = f"https://race.netkeiba.com/top/race_list_sub.html?kaisai_date={date_str}"
+    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        res = fetch_html(url)
+        res = requests.get(url, headers=headers, timeout=5)
         res.encoding = 'utf-8'
         matches = re.findall(r'race_id=(\d{12})', res.text)
         return sorted(list(set(matches)))
@@ -38,70 +20,57 @@ def get_race_ids(date_str):
 def fetch_single_race_1st_place(race_id):
     """1レースの結果ページをスクレイピングし、1着馬の[レース番号, 人気順]を返す"""
     url = f"https://race.netkeiba.com/race/result.html?race_id={race_id}"
+    headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        res = fetch_html(url)
+        res = requests.get(url, headers=headers, timeout=5)
         res.encoding = 'euc-jp'
         
         soup = BeautifulSoup(res.text, 'html.parser')
-        table = soup.find('table', class_='RaceTable01')
-        if not table:
+        
+        # 着順1の行を探す
+        result_table = soup.find('table', class_='RaceNFriendsTable')
+        if not result_table:
             return None
             
-        rows = table.find_all('tr')[1:] # Skip header
-        for row in rows:
+        for row in result_table.find_all('tr')[1:]: # ヘッダスキップ
             cols = row.find_all('td')
-            if len(cols) >= 10:
+            if len(cols) > 10:
                 rank = cols[0].get_text(strip=True)
-                if rank.startswith('1'):
-                    pop_str = cols[9].get_text(strip=True)
-                    if pop_str.isdigit() or pop_str.replace('.', '', 1).isdigit():
-                        return {
-                            "race_id": race_id,
-                            "race_num": int(race_id[-2:]),
-                            "course": race_id[4:6],
-                            "popularity": int(float(pop_str))
-                        }
+                if rank == '1':
+                    pop = cols[9].get_text(strip=True)
+                    try:
+                        return [race_id, int(pop)]
+                    except ValueError:
+                        return None
         return None
     except Exception as e:
-        print(f"Exception in fetch_single_race_1st_place: {e}")
+        print(f"1着データ取得エラー（{race_id}）: {e}")
         return None
 
-def fetch_1st_place_popularities(date_str, up_to_race=None):
-    """指定日の全レースの1着馬の人気順を取得する。並列処理で高速化。"""
-    race_ids = get_race_ids(date_str)
-    if not race_ids:
-        return []
-
-    results = []
-    
-    # フィルタリング (指定レース以下のみ)
-    target_race_ids = []
-    for r_id in race_ids:
-        r_num = int(r_id[-2:])
-        if up_to_race is None or r_num <= up_to_race:
-            target_race_ids.append(r_id)
-
-    # 並列でスクレイピング
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_race = {executor.submit(fetch_single_race_1st_place, r_id): r_id for r_id in target_race_ids}
+def fetch_1st_place_popularities(race_ids):
+    """複数レースの1着人気順を並列で取得する"""
+    results = {}
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_race = {executor.submit(fetch_single_race_1st_place, rid): rid for rid in race_ids}
         for future in as_completed(future_to_race):
-            res = future.result()
-            if res:
-                results.append(res)
-                
-    # ソートして返す
-    results.sort(key=lambda x: (x["course"], x["race_num"]))
-    return results
+            data = future.result()
+            if data:
+                results[data[0]] = data[1]
+    
+    # 元のID順にソートしてリスト化
+    sorted_pops = [results[rid] for rid in race_ids if rid in results]
+    return sorted_pops
 
 def fetch_live_odds(race_id):
     """
     指定レースの馬番、枠番、馬名、騎手、最新オッズ、人気順を取得する
     """
+    headers = {'User-Agent': 'Mozilla/5.0'}
     
     # 1. 出馬表から基本情報（枠、馬番、馬名、騎手）を取得
     shutuba_url = f"https://race.netkeiba.com/race/shutuba.html?race_id={race_id}"
     try:
-        res_s = fetch_html(shutuba_url)
+        res_s = requests.get(shutuba_url, headers=headers, timeout=5)
         res_s.encoding = 'euc-jp'
         soup_s = BeautifulSoup(res_s.text, 'html.parser')
     except Exception as e:
@@ -136,7 +105,7 @@ def fetch_live_odds(race_id):
     # 2. オッズページから最新オッズと人気を取得
     odds_url = f"https://race.netkeiba.com/odds/index.html?type=b1&race_id={race_id}"
     try:
-        res_o = fetch_html(odds_url)
+        res_o = requests.get(odds_url, headers=headers, timeout=5)
         res_o.encoding = 'euc-jp'
         soup_o = BeautifulSoup(res_o.text, 'html.parser')
     except Exception as e:
