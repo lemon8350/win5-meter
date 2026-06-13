@@ -18,23 +18,36 @@ def get_race_ids(date_str):
         return []
 
 def get_win5_race_ids(date_str):
-    """指定した日付のWIN5対象レースを取得する（公式WIN5ページから抽出）"""
-    url = f"https://race.netkeiba.com/top/win5.html?kaisai_date={date_str}"
+    """指定した日付のWIN5対象レースを取得する（公式WIN5ページのidxを巡回して抽出）"""
+    # YYYYMMDD -> YYYY年M月D日
+    year = date_str[:4]
+    month = str(int(date_str[4:6]))
+    day = str(int(date_str[6:8]))
+    target_date = f"{year}年{month}月{day}日"
+    
     headers = {'User-Agent': 'Mozilla/5.0'}
+    
     try:
-        res = requests.get(url, headers=headers, timeout=5)
-        res.encoding = 'euc-jp'
-        
-        # HTML内から race_id=xxxxxxxxxxxx を抽出
-        matches = re.findall(r'race_id=(\d{12})', res.text)
-        
-        # 順番を保持したまま重複を削除して5レース分を取得
-        unique_races = []
-        for rid in matches:
-            if rid not in unique_races:
-                unique_races.append(rid)
+        # idx=0 から順番にページをチェックし、指定した日付のWIN5を探す
+        for idx in range(5):
+            url = f"https://race.netkeiba.com/top/win5.html?idx={idx}"
+            res = requests.get(url, headers=headers, timeout=5)
+            res.encoding = 'euc-jp'
+            
+            # ページ内に指定した日付（タイトルなど）が含まれているか確認
+            if target_date in res.text:
+                matches = re.findall(r'race_id=(\d{12})', res.text)
                 
-        return unique_races[:5]
+                # 順番を保持したまま重複を削除
+                unique_races = []
+                for rid in matches:
+                    if rid not in unique_races:
+                        unique_races.append(rid)
+                        
+                if len(unique_races) >= 5:
+                    return unique_races[:5]
+                    
+        return []
     except Exception as e:
         print(f"WIN5レース取得エラー（{date_str}）: {e}")
         return []
