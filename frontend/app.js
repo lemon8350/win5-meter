@@ -239,14 +239,23 @@ async function loadRacesForCopier() {
             }
         }
         
-        // Basic Auto-select logic (just tries to pick 10R and 11R)
-        // This is a naive auto-select.
-        if (!document.getElementById('win5-race-1').value) {
-            const r10 = races.filter(r => r.endsWith('10'));
-            const r11 = races.filter(r => r.endsWith('11'));
-            const autoSelects = [...r10, ...r11].sort();
-            for (let i = 0; i < Math.min(5, autoSelects.length); i++) {
-                document.getElementById(`win5-race-${i+1}`).value = autoSelects[i];
+        // Basic Auto-select logic using the backend's predicted WIN5 races
+        if (data.win5_races && data.win5_races.length === 5) {
+            for (let i = 0; i < 5; i++) {
+                const sel = document.getElementById(`win5-race-${i+1}`);
+                if (!sel.value) { // Only auto-select if empty
+                    sel.value = data.win5_races[i];
+                }
+            }
+        } else {
+            // Fallback: naive auto-select
+            if (!document.getElementById('win5-race-1').value) {
+                const r10 = races.filter(r => r.endsWith('10'));
+                const r11 = races.filter(r => r.endsWith('11'));
+                const autoSelects = [...r10, ...r11].sort();
+                for (let i = 0; i < Math.min(5, autoSelects.length); i++) {
+                    document.getElementById(`win5-race-${i+1}`).value = autoSelects[i];
+                }
             }
         }
     }
@@ -305,8 +314,13 @@ btnFetchOdds.addEventListener('click', async () => {
 });
 
 btnCopyOdds.addEventListener('click', () => {
-    oddsOutput.select();
-    document.execCommand('copy');
+    oddsOutput.focus();
+    oddsOutput.setSelectionRange(0, oddsOutput.value.length);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(oddsOutput.value);
+    } else {
+        document.execCommand('copy');
+    }
     const originalText = btnCopyOdds.innerText;
     btnCopyOdds.innerText = "コピー完了！";
     btnCopyOdds.style.backgroundColor = "var(--accent-success)";

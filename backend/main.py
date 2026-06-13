@@ -2,6 +2,7 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from calculator import get_popularity_sum, get_race_list, get_win5_live_odds
+from scraper import get_win5_race_ids
 from datetime import datetime, timedelta
 import os
 from typing import List
@@ -38,9 +39,10 @@ def get_status():
 
 @app.get("/api/races")
 def api_get_races(target_date: str = Query(...)):
-    """指定された日付の全レースIDを返す"""
+    """指定された日付の全レースIDと、予測されたWIN5対象レースIDを返す"""
     race_ids = get_race_list(target_date)
-    return {"date": target_date, "races": race_ids}
+    win5_races = get_win5_race_ids(target_date)
+    return {"date": target_date, "races": race_ids, "win5_races": win5_races}
 
 @app.get("/api/win5-live-odds")
 def api_get_win5_live_odds(race_ids: List[str] = Query(...)):
