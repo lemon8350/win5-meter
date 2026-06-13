@@ -150,3 +150,169 @@ btnSun.addEventListener('click', async () => {
 
 // Initial Ping
 fetchAPI('/status');
+
+// --- Tab Switching Logic ---
+const tabBtns = document.querySelectorAll('.tab-btn');
+const viewSections = document.querySelectorAll('.view-section');
+
+tabBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+        tabBtns.forEach(b => b.classList.remove('active'));
+        viewSections.forEach(v => v.classList.remove('active'));
+        btn.classList.add('active');
+        const targetId = btn.getAttribute('data-target');
+        const targetView = document.getElementById(targetId);
+        targetView.classList.add('active');
+        targetView.style.display = 'block';
+        
+        // Hide others
+        viewSections.forEach(v => {
+            if (v.id !== targetId) v.style.display = 'none';
+        });
+
+        if (targetId === 'view-copier') {
+            loadRacesForCopier();
+        }
+    });
+});
+
+// --- Copier Logic ---
+const btnFetchOdds = document.getElementById('btn-fetch-odds');
+const spinnerOdds = document.getElementById('spinner-odds');
+const btnCopyOdds = document.getElementById('btn-copy-odds');
+const oddsOutput = document.getElementById('odds-output');
+
+// 競馬場コード変換用
+const courseMap = {
+    "01": "札幌", "02": "函館", "03": "福島", "04": "新潟", "05": "東京",
+    "06": "中山", "07": "中京", "08": "京都", "09": "阪神", "10": "小倉"
+};
+
+function formatRaceName(raceId) {
+    const courseCode = raceId.substring(4, 6);
+    const raceNum = parseInt(raceId.substring(10, 12), 10);
+    const courseName = courseMap[courseCode] || courseCode;
+    return `${courseName}${raceNum}R`;
+}
+
+async function loadRacesForCopier() {
+    // If races are already loaded for the current date, skip.
+    // Otherwise fetch from /api/races
+    const dates = getWeekendDatesFromInput();
+    const targetDate = dates.sun || dates.sat; // Prefer sunday since WIN5 is usually sunday
+    if (!targetDate) return;
+
+    // We can fetch races
+    const data = await fetchAPI(`/races?target_date=${targetDate}`);
+    if (data && data.races) {
+        const races = data.races; // List of race IDs
+        
+        // Populate 5 dropdowns
+        for (let i = 1; i <= 5; i++) {
+            const select = document.getElementById(`win5-race-${i}`);
+            // Keep the selected value if it exists and is in the new list, otherwise reset
+            const currentVal = select.value;
+            select.innerHTML = '';
+            
+            // Add an empty default option
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = "";
+            defaultOpt.innerText = "選択してください";
+            select.appendChild(defaultOpt);
+
+            races.forEach(r => {
+                const opt = document.createElement('option');
+                opt.value = r;
+                opt.innerText = formatRaceName(r);
+                select.appendChild(opt);
+            });
+
+            // Try to auto-select if empty
+            if (currentVal && races.includes(currentVal)) {
+                select.value = currentVal;
+            }
+        }
+        
+        // Basic Auto-select logic (just tries to pick 10R and 11R)
+        // This is a naive auto-select.
+        if (!document.getElementById('win5-race-1').value) {
+            const r10 = races.filter(r => r.endsWith('10'));
+            const r11 = races.filter(r => r.endsWith('11'));
+            const autoSelects = [...r10, ...r11].sort();
+            for (let i = 0; i < Math.min(5, autoSelects.length); i++) {
+                document.getElementById(`win5-race-${i+1}`).value = autoSelects[i];
+            }
+        }
+    }
+}
+
+targetDateInput.addEventListener('change', () => {
+    // Reload races if in copier view
+    if (document.getElementById('view-copier').classList.contains('active')) {
+        loadRacesForCopier();
+    }
+});
+
+btnFetchOdds.addEventListener('click', async () => {
+    btnFetchOdds.classList.add('hidden');
+    spinnerOdds.classList.remove('hidden');
+    
+    // Collect selected race IDs
+    const raceIds = [];
+    for (let i = 1; i <= 5; i++) {
+        const val = document.getElementById(`win5-race-${i}`).value;
+        if (val) raceIds.push(val);
+    }
+    
+    if (raceIds.length === 0) {
+        oddsOutput.value = "レースが選択されていません。";
+        spinnerOdds.classList.add('hidden');
+        btnFetchOdds.classList.remove('hidden');
+        return;
+    }
+
+    // Build Query
+    const qParams = raceIds.map(id => `race_ids=${id}`).join('&');
+    const data = await fetchAPI(`/win5-live-odds?${qParams}`);
+    
+    if (data && data.races) {
+        let outText = "";
+        for (const r_id of raceIds) {
+            outText += `【${formatRaceName(r_id)}】\n`;
+            const horses = data.races[r_id] || [];
+            if (horses.length === 0) {
+                outText += "データがありません\n\n";
+                continue;
+            }
+            horses.forEach(h => {
+                outText += `${h.popularity}番人気 [${h.waku}枠${h.umaban}番] ${h.horse_name} (${h.jockey}) ${h.odds}倍\n`;
+            });
+            outText += "\n";
+        }
+        oddsOutput.value = outText.trim();
+    } else {
+        oddsOutput.value = "取得に失敗しました。";
+    }
+
+    spinnerOdds.classList.add('hidden');
+    btnFetchOdds.classList.remove('hidden');
+});
+
+btnCopyOdds.addEventListener('click', () => {
+    oddsOutput.select();
+    document.execCommand('copy');
+    const originalText = btnCopyOdds.innerText;
+    btnCopyOdds.innerText = "コピー完了！";
+    btnCopyOdds.style.backgroundColor = "var(--accent-success)";
+    setTimeout(() => {
+        btnCopyOdds.innerText = originalText;
+        btnCopyOdds.style.backgroundColor = "var(--accent-secondary)";
+    }, 2000);
+});
+
+// Initialize init logic
+document.addEventListener('DOMContentLoaded', () => {
+    // set default input to today
+    const now = new Date();
+    targetDateInput.value = now.toISOString().split('T')[0];
+});

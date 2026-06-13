@@ -17,7 +17,14 @@
    - GitHubを連携し、先ほど作成した `win5-meter` リポジトリを選択します。
    - Renderが自動的にリポジトリ内の `render.yaml` を読み込み、Webサービスとしてデプロイを開始します。
 
-3. **アクセス**
+3. **ScraperAPIキーの登録（Netkeibaのブロック回避用）**
+   - デプロイ設定画面、もしくはデプロイ後のダッシュボードの「Environment」タブを開きます。
+   - 「Add Environment Variable」をクリックし、以下の変数を追加します。
+     - Key: `SCRAPER_API_KEY`
+     - Value: （ScraperAPIで取得したあなたのAPIキー）
+   - 設定後、「Save Changes」を押すとアプリが自動的に再起動します。
+
+4. **アクセス**
    - デプロイが完了すると、Renderから専用のURL（例: `https://win5-meter-xxxx.onrender.com`）が発行されます。
    - iPhoneのSafariからそのURLにアクセスし、画面下部の共有ボタンから「ホーム画面に追加」をタップすることで、アプリとしてご利用いただけます。
 

@@ -34,3 +34,25 @@ def get_popularity_sum(date_str, up_to_race=None):
     # 土曜日のデータなどでレース数が多い（完了している）場合はキャッシュ時間を延ばす工夫も可能
     CACHE[cache_key] = data
     return data
+
+from scraper import get_race_ids, fetch_live_odds
+
+def get_race_list(date_str):
+    """指定日のレースID一覧を返す"""
+    return get_race_ids(date_str)
+
+def get_win5_live_odds(race_ids):
+    """指定された複数のレースIDのリアルタイムオッズを取得する"""
+    # 並列でスクレイピング
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    results = {}
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_race = {executor.submit(fetch_live_odds, r_id): r_id for r_id in race_ids}
+        for future in as_completed(future_to_race):
+            r_id = future_to_race[future]
+            try:
+                data = future.result()
+                results[r_id] = data
+            except Exception as e:
+                results[r_id] = []
+    return results

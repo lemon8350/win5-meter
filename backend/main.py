@@ -1,9 +1,10 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from calculator import get_popularity_sum
+from calculator import get_popularity_sum, get_race_list, get_win5_live_odds
 from datetime import datetime, timedelta
 import os
+from typing import List
 
 app = FastAPI(title="WIN5 Difficulty Meter API")
 
@@ -34,6 +35,18 @@ def get_status():
         "target_saturday": sat,
         "target_sunday": sun
     }
+
+@app.get("/api/races")
+def api_get_races(target_date: str = Query(...)):
+    """指定された日付の全レースIDを返す"""
+    race_ids = get_race_list(target_date)
+    return {"date": target_date, "races": race_ids}
+
+@app.get("/api/win5-live-odds")
+def api_get_win5_live_odds(race_ids: List[str] = Query(...)):
+    """指定されたレースIDのリストに対して、リアルタイムオッズを返す"""
+    data = get_win5_live_odds(race_ids)
+    return {"races": data}
 
 @app.get("/api/saturday-ceiling")
 def get_saturday_ceiling(target_date: str = Query(None, description="YYYYMMDD形式の日付（省略時は自動判定）")):
