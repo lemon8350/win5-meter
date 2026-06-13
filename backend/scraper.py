@@ -18,39 +18,25 @@ def get_race_ids(date_str):
         return []
 
 def get_win5_race_ids(date_str):
-    """指定した日付のWIN5対象レース（発走時刻が遅い5つのメイン級レース）を予測して取得する"""
-    url = f"https://race.netkeiba.com/top/race_list_sub.html?kaisai_date={date_str}"
+    """指定した日付のWIN5対象レースを取得する（公式WIN5ページから抽出）"""
+    url = f"https://race.netkeiba.com/top/win5.html?kaisai_date={date_str}"
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
         res = requests.get(url, headers=headers, timeout=5)
-        res.encoding = 'utf-8'
-        soup = BeautifulSoup(res.text, 'html.parser')
+        res.encoding = 'euc-jp'
         
-        candidates = []
-        for a in soup.find_all('a', href=re.compile(r'shutuba\.html\?race_id=\d{12}')):
-            m = re.search(r'race_id=(\d{12})', a['href'])
-            if not m: continue
-            rid = m.group(1)
-            r_num = int(rid[-2:])
-            if r_num not in [9, 10, 11]:
-                continue
-            
-            time_span = a.find('span', class_='RaceList_Itemtime')
-            if time_span:
-                t_str = time_span.get_text(strip=True)
-                candidates.append((rid, t_str))
+        # HTML内から race_id=xxxxxxxxxxxx を抽出
+        matches = re.findall(r'race_id=(\d{12})', res.text)
+        
+        # 順番を保持したまま重複を削除して5レース分を取得
+        unique_races = []
+        for rid in matches:
+            if rid not in unique_races:
+                unique_races.append(rid)
                 
-        unique_candidates = {}
-        for rid, t in candidates:
-            unique_candidates[rid] = t
-            
-        sorted_cands = sorted(unique_candidates.items(), key=lambda x: x[1])
-        if len(sorted_cands) >= 5:
-            win5_races = [x[0] for x in sorted_cands[-5:]]
-            return sorted(win5_races, key=lambda rid: unique_candidates[rid])
-        return []
+        return unique_races[:5]
     except Exception as e:
-        print(f"WIN5レース予測エラー（{date_str}）: {e}")
+        print(f"WIN5レース取得エラー（{date_str}）: {e}")
         return []
 
 def fetch_single_race_1st_place(race_id):
