@@ -5,7 +5,7 @@ import os
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def fetch_html(url, timeout=15):
+def fetch_html(url, timeout=60):
     """
     URLをフェッチする汎用ヘルパー。
     環境変数 SCRAPER_API_KEY が設定されている場合は、ScraperAPIを経由して取得する。

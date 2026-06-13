@@ -198,9 +198,15 @@ function formatRaceName(raceId) {
 async function loadRacesForCopier() {
     // If races are already loaded for the current date, skip.
     // Otherwise fetch from /api/races
-    const dates = getWeekendDatesFromInput();
-    const targetDate = dates.sun || dates.sat; // Prefer sunday since WIN5 is usually sunday
-    if (!targetDate) return;
+    
+    // Instead of forcing Sunday, get the exact date from the input
+    const val = targetDateInput.value;
+    if (!val) return;
+    
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return;
+    
+    const targetDate = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 
     // We can fetch races
     const data = await fetchAPI(`/races?target_date=${targetDate}`);
