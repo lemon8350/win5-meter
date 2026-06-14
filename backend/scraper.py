@@ -21,7 +21,7 @@ def get_race_ids(date_str):
     url = f"https://race.netkeiba.com/top/race_list_sub.html?kaisai_date={date_str}"
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        res = requests.get(url, headers=headers, timeout=5)
+        res = fetch_with_retry(url, headers=headers)
         res.encoding = 'utf-8'
         matches = re.findall(r'race_id=(\d{12})', res.text)
         return sorted(list(set(matches)))
@@ -43,7 +43,7 @@ def get_win5_race_ids(date_str):
         # idx=0 から順番にページをチェックし、指定した日付のWIN5を探す
         for idx in range(5):
             url = f"https://race.netkeiba.com/top/win5.html?idx={idx}"
-            res = requests.get(url, headers=headers, timeout=20)
+            res = fetch_with_retry(url, headers=headers)
             res.encoding = 'euc-jp'
             
             # ページ内に指定した日付（タイトルなど）が含まれているか確認
@@ -69,7 +69,7 @@ def fetch_single_race_1st_place(race_id):
     url = f"https://race.netkeiba.com/race/result.html?race_id={race_id}"
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        res = requests.get(url, headers=headers, timeout=20)
+        res = fetch_with_retry(url, headers=headers)
         res.encoding = 'euc-jp'
         
         soup = BeautifulSoup(res.text, 'html.parser')
