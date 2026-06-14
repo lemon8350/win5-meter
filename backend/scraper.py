@@ -21,7 +21,7 @@ def get_race_ids(date_str):
     url = f"https://race.netkeiba.com/top/race_list_sub.html?kaisai_date={date_str}"
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        res = fetch_with_retry(url, headers=headers)
+        res = fetch_with_retry(url, headers=headers, max_retries=1)
         res.encoding = 'utf-8'
         matches = re.findall(r'race_id=(\d{12})', res.text)
         return sorted(list(set(matches)))
@@ -40,10 +40,10 @@ def get_win5_race_ids(date_str):
     headers = {'User-Agent': 'Mozilla/5.0'}
     
     try:
-        # idx=0 から順番にページをチェックし、指定した日付のWIN5を探す
-        for idx in range(5):
+        # idx=0 から順番にページをチェック (最新2件のみに制限してタイムアウトを防ぐ)
+        for idx in range(2):
             url = f"https://race.netkeiba.com/top/win5.html?idx={idx}"
-            res = fetch_with_retry(url, headers=headers)
+            res = fetch_with_retry(url, headers=headers, max_retries=1)
             res.encoding = 'euc-jp'
             
             # ページ内に指定した日付（タイトルなど）が含まれているか確認
@@ -152,7 +152,7 @@ def fetch_live_odds(race_id):
     # 2. オッズページから最新オッズと人気を取得 (HTMLFallback)
     odds_url = f"https://race.netkeiba.com/odds/index.html?type=b1&race_id={race_id}"
     try:
-        res_o = fetch_with_retry(odds_url, headers=headers)
+        res_o = fetch_with_retry(odds_url, headers=headers, max_retries=1)
         res_o.encoding = 'euc-jp'
         soup_o = BeautifulSoup(res_o.text, 'html.parser')
     except Exception as e:
@@ -163,7 +163,7 @@ def fetch_live_odds(race_id):
     api_url = f"https://race.netkeiba.com/api/api_get_jra_odds.html?race_id={race_id}&type=1&action=init"
     api_odds_data = {}
     try:
-        res_api = fetch_with_retry(api_url, headers=headers)
+        res_api = fetch_with_retry(api_url, headers=headers, max_retries=2)
         api_json = res_api.json()
         if "data" in api_json and "odds" in api_json["data"] and "1" in api_json["data"]["odds"]:
             # "1" は単勝オッズを表す
