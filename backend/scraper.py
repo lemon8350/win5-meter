@@ -97,7 +97,7 @@ def fetch_single_race_1st_place(race_id):
 def fetch_1st_place_popularities(race_ids):
     """複数レースの1着人気順を並列で取得する"""
     results = {}
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=36) as executor:
         future_to_race = {executor.submit(fetch_single_race_1st_place, rid): rid for rid in race_ids}
         for future in as_completed(future_to_race):
             data = future.result()

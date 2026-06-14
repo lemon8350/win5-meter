@@ -20,15 +20,30 @@ def get_popularity_sum(date_str, up_to_race=None):
             return cached_data
             
     # キャッシュ切れまたは新規ならスクレイピング
-    results = fetch_1st_place_popularities(date_str, up_to_race)
+    # まず指定日の全レースを取得
+    from scraper import get_race_ids
+    race_ids = get_race_ids(date_str)
     
-    total_pop = sum(r["popularity"] for r in results)
+    if up_to_race is not None:
+        filtered = []
+        for rid in race_ids:
+            try:
+                # レース番号は末尾2桁
+                if int(rid[-2:]) <= up_to_race:
+                    filtered.append(rid)
+            except ValueError:
+                pass
+        race_ids = filtered
+
+    pops = fetch_1st_place_popularities(race_ids)
+    
+    total_pop = sum(pops)
     
     data = {
         "sum": total_pop,
-        "count": len(results),
+        "count": len(pops),
         "timestamp": now,
-        "details": results
+        "details": pops
     }
     
     # 土曜日のデータなどでレース数が多い（完了している）場合はキャッシュ時間を延ばす工夫も可能
