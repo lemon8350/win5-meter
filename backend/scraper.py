@@ -2,7 +2,19 @@ import requests
 from bs4 import BeautifulSoup
 import re
 import os
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+def fetch_with_retry(url, headers, timeout=25, max_retries=3):
+    for i in range(max_retries):
+        try:
+            res = requests.get(url, headers=headers, timeout=timeout)
+            return res
+        except Exception as e:
+            print(f"Request failed ({i+1}/{max_retries}) for {url}: {e}")
+            if i < max_retries - 1:
+                time.sleep(1.5)
+    raise Exception(f"Failed after {max_retries} retries: {url}")
 
 def get_race_ids(date_str):
     """指定した日付のレースID一覧を取得する"""
@@ -31,7 +43,7 @@ def get_win5_race_ids(date_str):
         # idx=0 から順番にページをチェックし、指定した日付のWIN5を探す
         for idx in range(5):
             url = f"https://race.netkeiba.com/top/win5.html?idx={idx}"
-            res = requests.get(url, headers=headers, timeout=5)
+            res = requests.get(url, headers=headers, timeout=20)
             res.encoding = 'euc-jp'
             
             # ページ内に指定した日付（タイトルなど）が含まれているか確認
@@ -57,7 +69,7 @@ def fetch_single_race_1st_place(race_id):
     url = f"https://race.netkeiba.com/race/result.html?race_id={race_id}"
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
-        res = requests.get(url, headers=headers, timeout=5)
+        res = requests.get(url, headers=headers, timeout=20)
         res.encoding = 'euc-jp'
         
         soup = BeautifulSoup(res.text, 'html.parser')
@@ -105,7 +117,7 @@ def fetch_live_odds(race_id):
     # 1. 出馬表から基本情報（枠、馬番、馬名、騎手）を取得
     shutuba_url = f"https://race.netkeiba.com/race/shutuba.html?race_id={race_id}"
     try:
-        res_s = requests.get(shutuba_url, headers=headers, timeout=5)
+        res_s = fetch_with_retry(shutuba_url, headers=headers)
         res_s.encoding = 'euc-jp'
         soup_s = BeautifulSoup(res_s.text, 'html.parser')
     except Exception as e:
@@ -137,53 +149,82 @@ def fetch_live_odds(race_id):
                     "popularity": 999
                 }
 
-    # 2. オッズページから最新オッズと人気を取得
+    # 2. オッズページから最新オッズと人気を取得 (HTMLFallback)
     odds_url = f"https://race.netkeiba.com/odds/index.html?type=b1&race_id={race_id}"
     try:
-        res_o = requests.get(odds_url, headers=headers, timeout=5)
+        res_o = fetch_with_retry(odds_url, headers=headers)
         res_o.encoding = 'euc-jp'
         soup_o = BeautifulSoup(res_o.text, 'html.parser')
     except Exception as e:
         print(f"Error fetching odds for {race_id}: {e}")
         return list(horses_info.values())
 
-    table_o = soup_o.find('table', class_='RaceOdds_HorseList_Table')
-    if table_o:
+    # 3. リアルタイムJSON APIからオッズを取得（当日のレース用）
+    api_url = f"https://race.netkeiba.com/api/api_get_jra_odds.html?race_id={race_id}&type=1&action=init"
+    api_odds_data = {}
+    try:
+        res_api = fetch_with_retry(api_url, headers=headers)
+        api_json = res_api.json()
+        if "data" in api_json and "odds" in api_json["data"] and "1" in api_json["data"]["odds"]:
+            # "1" は単勝オッズを表す
+            api_odds_data = api_json["data"]["odds"]["1"]
+            print(f"Loaded live odds from JSON API for {race_id}")
+    except Exception as e:
+        print(f"Failed to load JSON odds API for {race_id}: {e}")
+
+    # HTMLからのオッズ取得用にテーブルをパースしておく（APIがない場合のみ使用）
+    html_odds_map = {}
+    tables_o = soup_o.find_all('table', class_='RaceOdds_HorseList_Table')
+    for table_o in tables_o:
         for row in table_o.find_all('tr'):
             tds = row.find_all('td')
             if len(tds) < 5:
                 continue
-            
-            umaban_td = row.find('td', class_=re.compile('W31')) # 馬番のtdはW31というクラスを持つことが多い
+            umaban_td = row.find('td', class_=re.compile('W31'))
             if not umaban_td:
-                # クラス名がない場合もあるためテキストで推測
-                # [枠, 馬番, 印, 選択, 馬名, オッズ]
                 umaban_td = tds[1]
-                
             umaban = umaban_td.get_text(strip=True)
             odds_td = row.find('td', class_='Popular')
-            if odds_td and umaban in horses_info:
-                odds_str = odds_td.get_text(strip=True)
-                horses_info[umaban]["odds"] = odds_str
-                # オッズが取得できたら人気順を一旦保持（ソート用）
-                try:
-                    if odds_str != '---.-' and odds_str != '':
-                        horses_info[umaban]["odds_val"] = float(odds_str)
-                except:
-                    pass
+            if odds_td:
+                html_odds_map[umaban] = odds_td.get_text(strip=True)
+
+    # 全馬に対してオッズ・人気を更新
+    for umaban, h_info in horses_info.items():
+        odds_str = '---.-'
+        popularity = 999
+        horse_key = umaban.zfill(2)
+        
+        if horse_key in api_odds_data:
+            # APIデータが存在すれば優先
+            odds_data = api_odds_data[horse_key]
+            odds_str = odds_data[0]
+            try:
+                popularity = int(odds_data[2])
+            except ValueError:
+                pass
+        elif umaban in html_odds_map:
+            # APIがなければHTMLから
+            odds_str = html_odds_map[umaban]
+
+        h_info["odds"] = odds_str
+        if popularity == 999:
+            try:
+                if odds_str != '---.-' and odds_str != '':
+                    h_info["odds_val"] = float(odds_str)
+            except ValueError:
+                pass
+        else:
+            h_info["popularity"] = popularity
 
     # リスト化
     result_list = list(horses_info.values())
     
-    # オッズ値が存在するものだけソートして人気順を付与
-    valid_horses = [h for h in result_list if "odds_val" in h]
-    valid_horses.sort(key=lambda x: x["odds_val"])
-    
-    for i, h in enumerate(valid_horses):
+    # 過去レースなどAPIがない場合のフォールバック用: popularityが999のままでオッズ(float)があればソートして付与
+    fallback_horses = [h for h in result_list if h["popularity"] == 999 and "odds_val" in h]
+    fallback_horses.sort(key=lambda x: x["odds_val"])
+    for i, h in enumerate(fallback_horses):
         h["popularity"] = i + 1
-        
-    # オッズ値がない馬は人気999のまま
-    
+
     # 全体を人気順 -> 馬番順でソート
     result_list.sort(key=lambda x: (x["popularity"], int(x["umaban"]) if x["umaban"].isdigit() else 999))
     
